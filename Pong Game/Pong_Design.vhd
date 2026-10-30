@@ -163,30 +163,58 @@ begin
         P2ScoreEn <= not ACTIVE;
         nextState <= currentState;
 
-        if (nextState = P1_NEXT_SERVE) then
-            holdMode <= ACTIVE;
-            directionMode <= '1';
-            nextState <= MOVE_RIGHT;
 
-        elsif (nextState = MOVE_RIGHT) then 
-            holdMode <= not ACTIVE;
-            directionMode <= '1';
-            if (P2En = '1') then
-                nextState <= P2_MISS;
-            end if;
-            if (position = 0) then 
-                nextState <= P2_HIT_DETECTION;     
-            end if;
-        elsif (nextState = P2_MISS) then 
-                P1ScoreEn <= ACTIVE;
-        elsif (nextState = P2_HIT_DETECTION) then
+        case currentState is
+            when P1_NEXT_SERVE =>
+                holdMode <= ACTIVE;
+                directionMode <= '1';
+                if(P1En = ACTIVE) then
+                    nextState <= MOVE_RIGHT;
+                end if;
+
+            when MOVE_RIGHT =>
+                holdMode <= not ACTIVE;
+                directionMode <= '1';
+                if (P2En = '1') then
+                    nextState <= P2_MISS;
+                end if;
+                if (position = 0 and moveEn = not ACTIVE) then 
+                    nextState <= P2_HIT_DETECTION;  
+                end if;
+
+            when P2_HIT_DETECTION =>
                 if (P2En = not ACTIVE and moveEn = ACTIVE) then 
                     nextState <= P2_MISS;
                 end if;
                 if (P2En = ACTIVE) then 
                     nextState <= MOVE_LEFT;
                 end if;
-        end if;
+
+            when P2_MISS => 
+                P1ScoreEn <= ACTIVE;
+
+            when MOVE_LEFT =>
+                holdMode <= not ACTIVE;
+                directionMode <= '0';
+                if (P1En = '1') then
+                    nextState <= P1_MISS;
+                end if;
+                if (position = 15) then 
+                    nextState <= P1_HIT_DETECTION;
+                end if;
+
+            when P1_HIT_DETECTION => 
+                if (P2En = not ACTIVE and moveEn = ACTIVE) then
+                    nextState <= P1_MISS; 
+                end if;
+                if (P2En = ACTIVE) then 
+                    nextState <= MOVE_RIGHT;
+                end if;
+
+            when P1_MISS => 
+                P2ScoreEn <= ACTIVE;
+
+            end case;
     end process STATE_TRANS;
     
 end pong_ARCH;
