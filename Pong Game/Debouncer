@@ -61,14 +61,14 @@ begin
         elsif rising_edge(clock) then
             sampleEn <= (not ACTIVE);
             -- sample on increased interval
-        if (count < MAX) then
-            -- increment counter
-            count := count + 1;
-        else
-            -- overflow back to 0
-            count := 0;
-            sampleEn <= ACTIVE;
-        end if;
+            if (count < MAX) then
+                -- increment counter
+                count := count + 1;
+            else
+                -- overflow back to 0
+                count := 0;
+                sampleEn <= ACTIVE;
+            end if;
         end if;
     end process;
     -- sample raw signal to synchronize and further debounce
@@ -86,15 +86,15 @@ begin
         -- update buffer on sample interval
             if (sampleEn = ACTIVE) then
             -- shift previous inputs
-            previous(DEPTH - 2 downto 0) := previous(DEPTH - 1 downto 1);
-            -- add next sampled input to buffer
-            previous(DEPTH - 1) := asyncIn;
+                previous(DEPTH - 2 downto 0) := previous(DEPTH - 1 downto 1);
+                -- add next sampled input to buffer
+                previous(DEPTH - 1) := asyncIn;
             end if;
             -- count number of current value of signal
             count := 0;
             for i in previous'range loop
                 if (previous(i) = previous(0)) then
-                count := count + 1;
+                    count := count + 1;
                 end if;
             end loop;
         -- if majority of the samples match new value, update output

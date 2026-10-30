@@ -49,6 +49,10 @@ architecture pong_ARCH of pong is
     signal moveEn: std_logic;
     signal position: integer;
     signal P1miss: std_logic;
+    signal P2En: std_logic;
+    signal P1En: std_logic;
+    signal P2Score: integer;
+    signal P1Score: integer;
 begin
 
     SPEED: process(reset, clock) is
@@ -76,12 +80,12 @@ begin
         variable count: integer := 16;
     begin
         if(reset = ACTIVE) then
-            count := 16;
+            count := 15;
         elsif(rising_edge(clock)) then
             if(moveEn = ACTIVE) then
                 if(holdMode = '1') then
                     if(directionMode = '1') then
-                        count := 16;
+                        count := 15;
                     end if;
                     if(directionMode = '0') then
                         count := 0;
@@ -102,7 +106,19 @@ begin
         LEDS(position) <= ACTIVE;
     end process LED_DRIVER;
     
-    P2_score: process(
+    P2_SCORE: process (clock, reset) is
+    begin
+        if(position = 0 and P2En = '1') then
+            P2Score <= P2Score + 1;
+        end if;
+    end process P2_SCORE;
+
+    P1_SCORE: process(clock, reset) is 
+    begin 
+        if(position = 15 and P1En = '1') then
+            P1Score <= P1Score + 1;
+        end if;
+    end process P1_SCORE;
     
     
 end pong_ARCH;
