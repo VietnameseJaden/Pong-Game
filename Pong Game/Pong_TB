@@ -91,9 +91,9 @@ constant ALL_TESTS: t_TEST_ARRAY(1 to 26) := (
     -----------------------------------------------------------------COMPONENT--
     -- uut: pong
     component pong is
-        generic(
-            COUNT_10KHZ: integer := 10000
-        );
+    generic(
+        COUNT_50MHZ: integer := 50000000
+    );
         port(
             clock:  in  std_logic;
             reset:  in  std_logic;
@@ -159,6 +159,7 @@ begin
     end loop;
         wait;
     end process;
+
 
 
 
@@ -231,7 +232,9 @@ end process;
 
     -- map pong to test signals
     UUT: pong
-        generic map( COUNT_10KHZ => 4 )
+    generic map(
+        COUNT_50MHZ => 4
+    )
         port map(
             clock  => clock,
             reset  => reset,
