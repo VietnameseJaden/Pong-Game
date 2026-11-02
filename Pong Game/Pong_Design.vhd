@@ -192,6 +192,9 @@ begin
 
             when P2_MISS => 
                 P1ScoreEn <= ACTIVE;
+                if (P1Score = 7) then
+                    nextState <= P_WIN;           
+                end if;
 
             when MOVE_LEFT =>
                 holdMode <= not ACTIVE;
@@ -213,7 +216,12 @@ begin
 
             when P1_MISS => 
                 P2ScoreEn <= ACTIVE;
-
+                if(P2Score = 7) then
+                    nextState <= P_WIN; 
+                end if;
+            
+            when P_WIN =>
+                
             end case;
     end process STATE_TRANS;
     

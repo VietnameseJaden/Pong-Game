@@ -1,0 +1,96 @@
+----------------------------------------------------------------------------------
+-- Company: 
+-- Engineer: 
+-- 
+-- Create Date: 10/27/2026 09:00:27 AM
+-- Design Name: Lab4
+-- Module Name: pong - Behavioral
+-- Project Name: Ping Pong Game
+-- Target Devices: 
+-- Tool Versions: 
+-- Description: Controls score mechanics and LED moving direction. 
+-- 
+-- Dependencies: 
+-- 
+-- Revision:
+-- Revision 0.01 - File Created
+-- Additional Comments:
+-- 
+----------------------------------------------------------------------------------
+
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+-- Uncomment the following library declaration if using
+-- arithmetic functions with Signed or Unsigned values
+--use IEEE.NUMERIC_STD.ALL;
+
+-- Uncomment the following library declaration if instantiating
+-- any Xilinx leaf cells in this code.
+--library UNISIM;
+--use UNISIM.VComponents.all;
+
+entity BASYS3_Wrapper is
+--  Port ( );
+    port
+    (
+        btnL: in std_logic;
+        btnR: in std_logic;
+        led: out std_logic_vector(15 downto 0);
+        seg: out std_logic_vector(6 downto 0);
+        clk: in std_logic;
+        an: out std_logic_vector(3 downto 0)
+    );
+    
+end BASYS3_Wrapper;
+
+architecture BASYS3_Wrapper_ARCH of BASYS3_Wrapper is
+    constant ACTIVE: std_logic := '1';
+
+    component Pong_Design is
+    port
+    (
+        clock: in std_logic;
+        reset: in std_logic;
+        
+        
+        LEDS: out std_logic_vector(15 downto 0);
+        P1Ones: out std_logic_vector(3 downto 0);
+        P2Ones: out std_logic_vector(3 downto 0)
+    );
+    end component;
+
+    component SevenSegmentDriver is
+    port
+    (
+        reset: in std_logic;
+        clock: in std_logic;
+        digit3: in std_logic_vector(3 downto 0); --leftmost digit
+        digit2: in std_logic_vector(3 downto 0); --2nd from left digit
+        digit1: in std_logic_vector(3 downto 0); --3rd from left digit
+        digit0: in std_logic_vector(3 downto 0); --rightmost digit
+        blank3: in std_logic; --leftmost digit
+        blank2: in std_logic; --2nd from left digit
+        blank1: in std_logic; --3rd from left digit
+        blank0: in std_logic; --rightmost digit
+        sevenSegs: out std_logic_vector(6 downto 0); --MSB=g, LSB=a
+        anodes: out std_logic_vector(3 downto 0) --MSB=leftmost digit
+        );
+    end component;
+
+    component Debouncer is 
+    port 
+    (
+        reset: in std_logic;
+        clock: in std_logic;
+        asyncIn: in std_logic;
+        syncOut: out std_logic    
+    );
+    end component;
+begin
+
+
+end BASYS3_Wrapper_ARCH;
+ 
