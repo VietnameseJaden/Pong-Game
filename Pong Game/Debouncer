@@ -33,8 +33,10 @@ entity Debouncer is
     port(
         reset: in std_logic;
         clock: in std_logic;
-        asyncIn: in std_logic;
-        syncOut: out std_logic
+        asyncIn1: in std_logic;
+        asyncIn2: in std_logic;
+        syncOut1: out std_logic;
+        syncOut2: out std_logic
     );
 end entity;
 
@@ -74,32 +76,62 @@ begin
     -- sample raw signal to synchronize and further debounce
     -- in : (reset, clock) sampleEn, asyncIn
     -- out: syncOut
-    DEBOUNCE: process (reset, clock) is
-        variable previous: std_logic_vector(DEPTH-1 downto 0);
-        variable count: integer range 0 to DEPTH;
+    DEBOUNCE_LEFT: process (reset, clock) is
+        variable previous1: std_logic_vector(DEPTH-1 downto 0);
+        variable count1: integer range 0 to DEPTH;
     begin
         if (reset = ACTIVE) then
         -- clear to inactive on reset
-            previous := (others => not ACTIVE);
-            count := 0;
+            previous1 := (others => not ACTIVE);
+            count1 := 0;
         elsif rising_edge(clock) then
         -- update buffer on sample interval
             if (sampleEn = ACTIVE) then
             -- shift previous inputs
-                previous(DEPTH - 2 downto 0) := previous(DEPTH - 1 downto 1);
+                previous1(DEPTH - 2 downto 0) := previous1(DEPTH - 1 downto 1);
                 -- add next sampled input to buffer
-                previous(DEPTH - 1) := asyncIn;
+                previous1(DEPTH - 1) := asyncIn1;
             end if;
             -- count number of current value of signal
-            count := 0;
-            for i in previous'range loop
-                if (previous(i) = previous(0)) then
-                    count := count + 1;
+            count1 := 0;
+            for i in previous1'range loop
+                if (previous1(i) = previous1(0)) then
+                    count1 := count1 + 1;
                 end if;
             end loop;
         -- if majority of the samples match new value, update output
-            if (count >= MIN_SAMPLES) then
-            syncOut <= previous(0);
+            if (count1 >= MIN_SAMPLES) then
+            syncOut1 <= previous1(0);
+            end if;
+        end if;
+    end process;
+
+    DEBOUNCE_RIGHT: process (reset, clock) is
+        variable previous2: std_logic_vector(DEPTH-1 downto 0);
+        variable count2: integer range 0 to DEPTH;
+    begin
+        if (reset = ACTIVE) then
+        -- clear to inactive on reset
+            previous2 := (others => not ACTIVE);
+            count2 := 0;
+        elsif rising_edge(clock) then
+        -- update buffer on sample interval
+            if (sampleEn = ACTIVE) then
+            -- shift previous inputs
+                previous2(DEPTH - 2 downto 0) := previous2(DEPTH - 1 downto 1);
+                -- add next sampled input to buffer
+                previous2(DEPTH - 1) := asyncIn2;
+            end if;
+            -- count number of current value of signal
+            count2 := 0;
+            for i in previous2'range loop
+                if (previous2(i) = previous2(0)) then
+                    count2 := count2 + 1;
+                end if;
+            end loop;
+        -- if majority of the samples match new value, update output
+            if (count2 >= MIN_SAMPLES) then
+            syncOut2 <= previous2(0);
             end if;
         end if;
     end process;

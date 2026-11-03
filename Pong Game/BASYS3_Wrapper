@@ -1,167 +1,145 @@
-
 ----------------------------------------------------------------------------------
+-- Company: 
+-- Engineer: 
+-- 
+-- Create Date: 10/27/2026 09:00:27 AM
 -- Design Name: Lab4
--- Module Name: BASYS3_Wrapper
+-- Module Name: pong - Behavioral
 -- Project Name: Ping Pong Game
--- Description: Wrapper for Pong game on BASYS3 board.
+-- Target Devices: 
+-- Tool Versions: 
+-- Description: Controls score mechanics and LED moving direction. 
+-- 
+-- Dependencies: 
+-- 
+-- Revision:
+-- Revision 0.01 - File Created
+-- Additional Comments:
+-- 
 ----------------------------------------------------------------------------------
 
-library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+-- Uncomment the following library declaration if using
+-- arithmetic functions with Signed or Unsigned values
+--use IEEE.NUMERIC_STD.ALL;
+
+-- Uncomment the following library declaration if instantiating
+-- any Xilinx leaf cells in this code.
+--library UNISIM;
+--use UNISIM.VComponents.all;
 
 entity BASYS3_Wrapper is
+--  Port ( );
     port
     (
         btnL: in std_logic;
         btnR: in std_logic;
-        btnD: in std_logic;
-        clk: in std_logic;
-
+        btnC: in std_logic;
         led: out std_logic_vector(15 downto 0);
         seg: out std_logic_vector(6 downto 0);
+        clk: in std_logic;
         an: out std_logic_vector(3 downto 0)
     );
+    
 end BASYS3_Wrapper;
 
 architecture BASYS3_Wrapper_ARCH of BASYS3_Wrapper is
-
-    -----------------------------------------------------------------CONSTANTS--
     constant ACTIVE: std_logic := '1';
 
-    constant FIRST_ACTIVE: std_logic_vector(1 downto 0) :=
-        (ACTIVE, not ACTIVE);
-
-    constant BCD_BLANK: std_logic_vector(3 downto 0) := "0000";
-
-    ----------------------------------------------------------------COMPONENTS--
-    -- Pong game
-    component pong is
-        port
-        (
-            clock: in std_logic;
-            reset: in std_logic;
-            P1En: in std_logic;
-            P2En: in std_logic;
-
-            LEDS: out std_logic_vector(15 downto 0);
-            P1Ones: out std_logic_vector(3 downto 0);
-            P2Ones: out std_logic_vector(3 downto 0)
-        );
+    component Pong_Design is
+    port
+    (
+        clock: in std_logic;
+        reset: in std_logic;
+        P1En: in std_logic;
+        P2En: in std_logic;
+        LEDS: out std_logic_vector(15 downto 0);
+        P1Ones: out std_logic_vector(3 downto 0);
+        P2Ones: out std_logic_vector(3 downto 0)
+    );
     end component;
 
-    -- Seven segment driver
     component SevenSegmentDriver is
-        port
-        (
-            reset: in std_logic;
-            clock: in std_logic;
-
-            digit3: in std_logic_vector(3 downto 0);
-            digit2: in std_logic_vector(3 downto 0);
-            digit1: in std_logic_vector(3 downto 0);
-            digit0: in std_logic_vector(3 downto 0);
-
-            blank3: in std_logic;
-            blank2: in std_logic;
-            blank1: in std_logic;
-            blank0: in std_logic;
-
-            sevenSegs: out std_logic_vector(6 downto 0);
-            anodes: out std_logic_vector(3 downto 0)
+    port
+    (
+        reset: in std_logic;
+        clock: in std_logic;
+        digit3: in std_logic_vector(3 downto 0); --leftmost digit
+        digit2: in std_logic_vector(3 downto 0); --2nd from left digit
+        digit1: in std_logic_vector(3 downto 0); --3rd from left digit
+        digit0: in std_logic_vector(3 downto 0); --rightmost digit
+        blank3: in std_logic; --leftmost digit
+        blank2: in std_logic; --2nd from left digit
+        blank1: in std_logic; --3rd from left digit
+        blank0: in std_logic; --rightmost digit
+        sevenSegs: out std_logic_vector(6 downto 0); --MSB=g, LSB=a
+        anodes: out std_logic_vector(3 downto 0) --MSB=leftmost digit
         );
     end component;
 
-    -------------------------------------------------------------------SIGNALS--
-    signal clock: std_logic;
+    component Debouncer is 
+    port 
+    (
+        reset: in std_logic;
+        clock: in std_logic;
+        asyncIn1: in std_logic;
+        asyncIn2: in std_logic;
+        syncOut1: out std_logic;
+        syncOut2: out std_logic    
+    );
+    end component;
+
     signal reset: std_logic;
-
-    signal P1En: std_logic;
-    signal P2En: std_logic;
-
+    signal clock: std_logic;
+    signal blankOnes: std_logic;
     signal P1Score: std_logic_vector(3 downto 0);
     signal P2Score: std_logic_vector(3 downto 0);
+    signal btnRSync: std_logic;
+    signal btnLSync: std_logic;
 
 begin
-
-    -- Map board inputs
     clock <= clk;
-    reset <= btnD;
+    reset <= btnC;
+    SYNC_BUTTONS: Debouncer 
+    port map(
+        reset => reset,
+        clock => clock,
+        asyncIn1 => btnR,
+        asyncIn2 => btnL,
+        syncOut1 => btnRSync,
+        syncOut2 => btnLSync
+    );
 
-    ---------------------------------------------------------------CLEAN_INPUT--
-    -- Generate one clock pulse when a player presses a button
-    CLEAN_INPUT: process(reset, clock) is
-
-        variable P1Inputs: std_logic_vector(3 downto 0) :=
-            (others => not ACTIVE);
-
-        variable P2Inputs: std_logic_vector(3 downto 0) :=
-            (others => not ACTIVE);
-
-    begin
-        if (reset = ACTIVE) then
-
-            P1En <= not ACTIVE;
-            P2En <= not ACTIVE;
-
-            P1Inputs := (others => not ACTIVE);
-            P2Inputs := (others => not ACTIVE);
-
-        elsif rising_edge(clock) then
-
-            -- Player 1 button
-            P1Inputs := btnL & P1Inputs(3 downto 1);
-
-            if (P1Inputs(1 downto 0) = FIRST_ACTIVE) then
-                P1En <= ACTIVE;
-            else
-                P1En <= not ACTIVE;
-            end if;
-
-            -- Player 2 button
-            P2Inputs := btnR & P2Inputs(3 downto 1);
-
-            if (P2Inputs(1 downto 0) = FIRST_ACTIVE) then
-                P2En <= ACTIVE;
-            else
-                P2En <= not ACTIVE;
-            end if;
-
-        end if;
-    end process CLEAN_INPUT;
-
-    ------------------------------------------------------------------------UUT--
-    -- Connect Pong game to board
-    UUT: pong port map(
+    UUT: Pong_Design 
+    port map(
         clock => clock,
         reset => reset,
-
-        P1En => P1En,
-        P2En => P2En,
-
+        P1En => btnRSync,
+        P2En => btnLSync,   
         LEDS => led,
         P1Ones => P1Score,
         P2Ones => P2Score
     );
 
-    --------------------------------------------------------------------SEG_OUT--
-    -- Display Player 1 and Player 2 scores
-    SEG_OUT: SevenSegmentDriver port map(
+    DRIVE_SEG: SevenSegmentDriver
+     port map(
         reset => reset,
         clock => clock,
-
         digit3 => P1Score,
-        digit2 => BCD_BLANK,
-        digit1 => BCD_BLANK,
+        digit2 => "0000",
+        digit1 => "0000",
         digit0 => P2Score,
-
         blank3 => not ACTIVE,
         blank2 => ACTIVE,
         blank1 => ACTIVE,
         blank0 => not ACTIVE,
-
         sevenSegs => seg,
         anodes => an
     );
 
 end BASYS3_Wrapper_ARCH;
+ 

@@ -8,8 +8,12 @@
 -- Project Name: Ping Pong Game
 -- Target Devices: 
 -- Tool Versions: 
--- Description: Controls score mechanics and LED moving direction. 
--- 
+-- Description: Implements a two-player LED ping-pong game using a finite
+--              state machine. Controls ball position, movement direction,
+--              serving, hit detection, and scoring. Increases ball speed
+--              after each point up to a set limit and outputs both player
+--              scores for display. Ends the game when a player reaches
+--              seven points and waits for reset.
 -- Dependencies: 
 -- 
 -- Revision:
@@ -46,7 +50,7 @@ end pong;
 
 architecture pong_ARCH of pong is
     constant ACTIVE: std_logic:= '1';
-    constant COUNT_50MHZ: integer:= 50000000;
+    signal ledSpeed: integer:= 50000000;
     signal moveEn: std_logic;
     signal holdMode: std_logic;
     signal directionMode: std_logic;
@@ -62,15 +66,29 @@ architecture pong_ARCH of pong is
     signal currentState: States_t; 
     signal nextState: States_t;
 begin
+    
+    SPEED_SETTING: process(clock, reset)
+    begin
+        if reset = ACTIVE then
+            ledSpeed <= 50000000;
+    
+        elsif rising_edge(clock) then
+            if position = 15 or position = 0 then
+                if (ledSpeed > 10000000) then
+                    ledSpeed <= ledSpeed - 5000000;
+                end if;
+            end if;
+        end if;
+    end process SPEED_SETTING;  
 
     SPEED: process(reset, clock) is
-        variable count: integer range 0 to COUNT_50MHZ;
+        variable count: integer:= 0;
     begin
     	--manage-count-value--------------------------------------------
         if (reset = ACTIVE) then
             count := 0;
         elsif (rising_edge(clock)) then
-            if (count = COUNT_50MHZ) then
+            if (count >= ledSpeed - 1) then
                 count := 0;
             else
                 count := count + 1;
@@ -79,7 +97,7 @@ begin
         
         --update-enable-signal-------------------------------------------
         moveEn <= not ACTIVE;  --default value unless count reaches terminal
-        if (count=COUNT_50MHZ) then
+        if (count=ledSpeed) then
         	moveEn <= ACTIVE;
         end if;
     end process SPEED;
@@ -90,21 +108,22 @@ begin
         if(reset = ACTIVE) then
             count := 15;
         elsif(rising_edge(clock)) then
-            if(moveEn = ACTIVE) then
-                if(holdMode = '1') then
-                    if(directionMode = '1') then
-                        count := 15;
-                    end if;
-                    if(directionMode = '0') then
-                        count := 0;
-                    end if;
-                elsif(directionMode = '1' and position > 0) then 
-                    count := count - 1; 
-                elsif(directionMode = '0' and position < 15) then 
-                    count := count + 1;
+            if(holdMode = '1') then
+                if(directionMode = '1') then
+                    count := 15;
+                end if;
+                if(directionMode = '0') then
+                    count := 0;
+                end if;
+            elsif (moveEn = ACTIVE) then 
+                if(directionMode = '1' and count > 0) then 
+                count := count - 1; 
+                end if;
+                if(directionMode = '0' and count < 15) then 
+                count := count + 1;
+                end if;
             end if;
        end if;
-     end if;
         position <= count;
     end process BALL_POSITION;
     
@@ -119,7 +138,7 @@ begin
         if (reset = ACTIVE) then
             P2Score <= 0;
         elsif rising_edge(clock) then
-            if (P2ScoreEn = ACTIVE and position = 0) then
+            if (P2ScoreEn = ACTIVE) then
                 P2Score <= P2Score + 1;
             end if;
         end if;
@@ -130,14 +149,14 @@ begin
         if (reset = ACTIVE) then
             P1Score <= 0;
         elsif rising_edge(clock) then
-            if (P1ScoreEn = ACTIVE and position = 15) then
+            if (P1ScoreEn = ACTIVE) then
                 P1Score <= P1Score + 1;
             end if;
         end if;
     end process;
     
-    P2CALC_ONES: P2Ones <= std_logic_vector(to_unsigned(P1Score, 4));
-    P1CALC_ONES: P1Ones <= std_logic_vector(to_unsigned(P2Score, 4));
+    P1CALC_ONES: P1Ones <= std_logic_vector(to_unsigned(P1Score, 4));
+    P2CALC_ONES: P2Ones <= std_logic_vector(to_unsigned(P2Score, 4));
     
     STATE_REG: process(clock, reset) is
     begin
@@ -213,7 +232,7 @@ begin
 
             when P2_MISS => 
                 P1ScoreEn <= ACTIVE;
-                if (P1Score = 7) then
+                if (P1Score = 6) then
                     nextState <= P_WIN;  
                 else
                     nextState <= P2_NEXT_SERVE;         
@@ -221,17 +240,17 @@ begin
 
             when P1_MISS => 
                 P2ScoreEn <= ACTIVE;
-                if(P2Score = 7) then
+                if(P2Score = 6) then
                     nextState <= P_WIN; 
                 else
                     nextState <= P1_NEXT_SERVE;
                 end if;
                 
             when P_WIN =>
-                nextState <= P1_NEXT_SERVE;
+                holdMode <= ACTIVE;
+                nextState <= P_WIN;
                 
             end case;
     end process STATE_TRANS;
     
 end pong_ARCH;
-
