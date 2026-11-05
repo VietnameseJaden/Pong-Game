@@ -61,8 +61,10 @@ architecture pong_ARCH of pong is
     signal P2Score: integer;
     signal P1ScoreEn: std_logic;
     signal P1Score: integer;
+    signal counting: integer := 0;
     type States_t is (P1_NEXT_SERVE, P2_NEXT_SERVE, MOVE_RIGHT, MOVE_LEFT, 
-                    P1_HIT_DETECTION, P2_HIT_DETECTION, P1_MISS, P2_MISS, P_WIN);
+                    P1_HIT_DETECTION, P2_HIT_DETECTION, P1_MISS, P2_MISS,
+                    SERVE_ALTERNATE, P_WIN);
     signal currentState: States_t; 
     signal nextState: States_t;
 begin
@@ -82,13 +84,16 @@ begin
     end process SPEED_SETTING;  
 
     SPEED: process(reset, clock) is
-        variable count: integer:= 0;
+        variable count: integer;
+        variable speed : integer;
     begin
+        count := 0;
+        speed := ledSpeed;
     	--manage-count-value--------------------------------------------
         if (reset = ACTIVE) then
             count := 0;
         elsif (rising_edge(clock)) then
-            if (count >= ledSpeed - 1) then
+            if (count = speed - 1) then
                 count := 0;
             else
                 count := count + 1;
@@ -162,19 +167,21 @@ begin
     begin
         if (reset = ACTIVE) then
             currentState <= P1_NEXT_SERVE;
+            counting <= 0;
         elsif (rising_edge(clock)) then
             currentState <= nextState;
         end if;
     end process STATE_REG;
     
     STATE_TRANS: process (currentState, P1En, P2En, moveEn, position, P1Score, P2Score) is 
+    variable counter : integer := counting;
     begin
         holdMode <= not ACTIVE;
         directionMode <= '1';
         P1ScoreEn <= not ACTIVE;
         P2ScoreEn <= not ACTIVE;
         nextState <= currentState;
-
+        
 
         case currentState is
         
@@ -233,22 +240,35 @@ begin
             when P2_MISS => 
                 P1ScoreEn <= ACTIVE;
                 if (P1Score = 6) then
-                    nextState <= P_WIN;  
+                    if (P1Score - P2Score >= 2) then
+                        nextState <= P_WIN;  
+                    end if;
                 else
-                    nextState <= P2_NEXT_SERVE;         
+                    nextState <= SERVE_ALTERNATE;         
                 end if;         
 
             when P1_MISS => 
                 P2ScoreEn <= ACTIVE;
                 if(P2Score = 6) then
-                    nextState <= P_WIN; 
+                    if (P2Score - P1Score >= 2) then
+                        nextState <= P_WIN; 
+                    end if;
                 else
-                    nextState <= P1_NEXT_SERVE;
+                    nextState <= SERVE_ALTERNATE;
                 end if;
                 
             when P_WIN =>
                 holdMode <= ACTIVE;
                 nextState <= P_WIN;
+                
+
+            when SERVE_ALTERNATE =>
+                counter := counter + 1;
+                if (counter mod 2 = 0) then
+                    nextState <= P1_NEXT_SERVE;
+                elsif (counter mod 2 = 1) then
+                    nextState <= P2_NEXT_SERVE;
+                end if;
                 
             end case;
     end process STATE_TRANS;
