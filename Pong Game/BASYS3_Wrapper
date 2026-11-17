@@ -39,6 +39,7 @@ entity BASYS3_Wrapper is
         btnL: in std_logic;
         btnR: in std_logic;
         btnC: in std_logic;
+        sw: in std_logic_vector(15 downto 0);
         led: out std_logic_vector(15 downto 0);
         seg: out std_logic_vector(6 downto 0);
         clk: in std_logic;
@@ -49,17 +50,23 @@ end BASYS3_Wrapper;
 
 architecture BASYS3_Wrapper_ARCH of BASYS3_Wrapper is
     constant ACTIVE: std_logic := '1';
-
-    component Pong_Design is
+    constant MAXCOUNT: integer := 25000000;
+    
+    component pong is
     port
     (
         clock: in std_logic;
         reset: in std_logic;
         P1En: in std_logic;
         P2En: in std_logic;
+        winCount: in std_logic_vector(15 downto 0);
+        P1win: out std_logic;
+        P2win: out std_logic;
         LEDS: out std_logic_vector(15 downto 0);
         P1Ones: out std_logic_vector(3 downto 0);
-        P2Ones: out std_logic_vector(3 downto 0)
+        P1Tens: out std_logic_vector(3 downto 0);
+        P2Ones: out std_logic_vector(3 downto 0);
+        P2Tens: out std_logic_vector(3 downto 0)
     );
     end component;
 
@@ -81,64 +88,225 @@ architecture BASYS3_Wrapper_ARCH of BASYS3_Wrapper is
         );
     end component;
 
-    component Debouncer is 
-    port 
-    (
-        reset: in std_logic;
-        clock: in std_logic;
-        asyncIn1: in std_logic;
-        asyncIn2: in std_logic;
-        syncOut1: out std_logic;
-        syncOut2: out std_logic    
-    );
-    end component;
-
     signal reset: std_logic;
     signal clock: std_logic;
-    signal blankOnes: std_logic;
-    signal P1Score: std_logic_vector(3 downto 0);
-    signal P2Score: std_logic_vector(3 downto 0);
-    signal btnRSync: std_logic;
-    signal btnLSync: std_logic;
+    signal scoreSeg: std_logic_vector(6 downto 0);
+    signal scoreAn: std_logic_vector(3 downto 0);
+    signal winner: std_logic_vector(1 downto 0);
+    signal P1Score: std_logic_vector(7 downto 0);
+    signal P2Score: std_logic_vector(7 downto 0); 
+    signal P1win: std_logic;
+    signal P2win: std_logic;
+     -- blank tens
+    signal P1blankTens: std_logic;
+    signal P2blankTens: std_logic;
+    signal P1Ones: std_logic_vector(3 downto 0);
+    signal P1Tens: std_logic_vector(3 downto 0);
+    signal P2Ones: std_logic_vector(3 downto 0);
+    signal P2Tens: std_logic_vector(3 downto 0);
+    signal moveEn: std_logic;
+    -- multiplexes the display
+    signal frameTick: integer range 0 to 4;
+    signal frameSuperFastEn: std_logic;
+    -- segs and an to animiate
+    signal animateSeg: std_logic_vector(6 downto 0);
+    signal animateAn: std_logic_vector(3 downto 0);
+    signal currentSpeed: integer range 0 to 25000000; 
 
-begin
+ begin
+
+    -- clock and reset declaration 
     clock <= clk;
     reset <= btnC;
-    SYNC_BUTTONS: Debouncer 
-    port map(
-        reset => reset,
-        clock => clock,
-        asyncIn1 => btnR,
-        asyncIn2 => btnL,
-        syncOut1 => btnRSync,
-        syncOut2 => btnLSync
-    );
-
-    UUT: Pong_Design 
+    
+    -- mapped inputs to BASYS3
+    UUT: pong 
     port map(
         clock => clock,
         reset => reset,
-        P1En => btnRSync,
-        P2En => btnLSync,   
+        P1En => btnL,
+        P2En => btnR,   
         LEDS => led,
-        P1Ones => P1Score,
-        P2Ones => P2Score
+        winCount => sw,
+        P1win => P1win,
+        P2win => P2win,
+        P1Ones => P1Ones,
+        P1Tens => P1Tens,
+        P2Ones => P2Ones,
+        P2Tens => P2Tens
     );
+    -- turns on the display for tens place
+    -- in : (reset, clock) P1Tens, P2Tens
+    -- out: P1blankTens, P2blankTens
+    P1BLANKTEN: with P1Tens select
+        P1blankTens <= ACTIVE when "0000",
+                       not ACTIVE when others;
+    P2BLANKTEN: with P2Tens select 
+        P2BlankTens <= ACTIVE when "0000", 
+                       not ACTIVE when others;
+                   
+    -- ouputs vector to show who won
+    -- in : (reset, clock) P1win, P2win
+    -- out: winner
+    WIN_DETECT: process(clock, reset) is
+    begin 
+        if (reset = ACTIVE) then
+            winner <= "00";
+        elsif (rising_edge(clock)) then 
+            if (P1win = ACTIVE) then 
+                winner <= "01";
+            elsif (P2win = ACTIVE) then 
+                winner <= "10";
+            end if;
+       end if;
+    end process WIN_DETECT;  
 
+    -- samples at either 0.25s or 1ms (multiplexer)
+    -- in : (reset, clock) frameSuperFastEn
+    -- out: currentSpeed
+    FASTEN: process(clock, reset)
+begin
+    if (reset = ACTIVE) then
+        currentSpeed <= MAXCOUNT;
+
+    elsif rising_edge(clock) then
+        if (frameSuperFastEn = ACTIVE) then
+            currentSpeed <= 100000;
+        else
+            currentSpeed <= MAXCOUNT;
+        end if;
+    end if;
+end process FASTEN;
+        
+    -- Enable process 
+    -- in : (reset, clock) currentSpeed
+    -- out: moveEn
+    SCAN_RATE: process (clock, reset) is 
+    variable count : integer range 0 to MAXCOUNT;
+    begin 
+        if (reset = ACTIVE) then 
+            count := 0;
+            moveEn <= not ACTIVE;
+        elsif (rising_edge(clock)) then 
+            moveEn <= not ACTIVE;
+            if (count >= currentSpeed) then 
+                count := 0; 
+                moveEn <= ACTIVE; 
+            else 
+                count := count + 1;
+            end if;
+       end if;
+    end process SCAN_RATE;
+    
+    -- cycles through each frame and activates multiplex
+    -- in : (reset, clock) moveEn
+    -- out: frameSuperFastEn, frameTick
+    FRAME_COUNTER: process(clock, reset)
+    variable fastCycles : integer range 0 to 250;
+    variable fastFrameOn: std_logic;
+begin
+    if (reset = ACTIVE) then
+        frameTick <= 0;
+        frameSuperFastEn <= not ACTIVE;
+        fastCycles := 0;
+
+    elsif rising_edge(clock) then
+        if (moveEn = ACTIVE) then
+
+            if (fastFrameOn = ACTIVE) then
+                if (fastCycles = 250) then
+                    frameSuperFastEn <= not ACTIVE;
+                    fastFrameOn := not ACTIVE;
+                    frameTick <= 0;
+                    fastCycles := 0;
+
+                elsif (frameTick = 4) then
+                    frameTick <= 0;
+                    fastCycles := fastCycles + 1;
+
+                else
+                    frameTick <= frameTick + 1;
+                end if;
+
+            elsif (frameTick = 4) then
+                frameTick <= 0;
+                frameSuperFastEn <= ACTIVE;
+                fastFrameOn := ACTIVE;
+            else
+                frameTick <= frameTick + 1;
+            end if;
+        end if;
+    end if;
+end process FRAME_COUNTER;
+    
+    -- displays the animation
+    -- in : (reset, clock) frameTick, winner
+    -- out: animateAn, animateSeg
+    WIN_ANIMATE: process(frameTick, winner) is 
+    begin
+        animateAn <= "1111";
+        animateSeg <= "1111111";
+        if (winner = "01") then
+            case frameTick is 
+                when 0 => 
+                animateAn <= "1110";
+                animateSeg <= "0111111";
+                when 1 => 
+                animateAn <= "1101";
+                animateSeg <= "0111111";
+                when 2 => 
+                animateAn <= "1011";
+                animateSeg <= "0111111";
+                when 3 => 
+                animateAn <= "0111";
+                animateSeg <= "0111111";
+                when 4 => 
+                animateAn <= "0111";
+                animateSeg <= "0000110";
+           end case;
+        elsif (winner = "10") then 
+            case frameTick is 
+                when 0 => 
+                animateAn <= "0111";
+                animateSeg <= "0111111";
+                when 1 => 
+                animateAn <= "1011";
+                animateSeg <= "0111111";
+                when 2 => 
+                animateAn <= "1101";
+                animateSeg <= "0111111";
+                when 3 => 
+                animateAn <= "1110";
+                animateSeg <= "0111111";
+                when 4 => 
+                animateAn <= "1110";
+                animateSeg <= "0110000";
+            end case;
+        end if;
+        
+    end process WIN_ANIMATE;
+    
+    -- displays either the score or animation
+    -- in : (reset, clock) winner
+    -- out: an, seg, scoreAn, scoreSeg
+    WIN_AN: an <= animateAn when winner /= "00" else scoreAn;
+    WIN_SEG: seg <= animateSeg when winner /= "00" else scoreSeg;
+   
+    -- drives seven segment display    
     DRIVE_SEG: SevenSegmentDriver
      port map(
         reset => reset,
         clock => clock,
-        digit3 => P1Score,
-        digit2 => "0000",
-        digit1 => "0000",
-        digit0 => P2Score,
-        blank3 => not ACTIVE,
-        blank2 => ACTIVE,
-        blank1 => ACTIVE,
+        digit3 => P1Tens,
+        digit2 => P1Ones,
+        digit1 => P2Tens,
+        digit0 => P2Ones,
+        blank3 => P1blankTens,
+        blank2 => not ACTIVE,
+        blank1 => P2blankTens,
         blank0 => not ACTIVE,
-        sevenSegs => seg,
-        anodes => an
+        sevenSegs => scoreSeg,
+        anodes => scoreAn
     );
 
 end BASYS3_Wrapper_ARCH;
